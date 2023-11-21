@@ -1,0 +1,73 @@
+[project]
+name = "orders-service"
+version = "0.0.1"
+description = ""
+authors = [
+    { name = "Nicolas May", email = "ldnicolasmay@gmail.com" },
+]
+
+requires-python = ">=3.9,<3.11"
+license = { text = "All Rights Reserved" }
+dependencies = [
+    "Faker==13.15.0",
+    "Shapely==1.8.5.post1",
+    "geopy==2.2.0",
+    "kafka-python==2.0.2",
+    "mysql-connector-python==8.0.27",
+    "pyproj==3.4.0",
+    "python-dateutil==2.8.2",
+    "requests==2.28.1",
+    "sortedcontainers==2.4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "black",
+]
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.ruff]
+line-length = 88
+select = [
+    "B",   # flake8-bugbear
+    "C",   # mccabe complexity
+    "E",   # Error
+    "F",   # pyflakes
+    "W",   # Warnings
+    "I",   # isort
+    "PD",  # pandas-vet https://beta.ruff.rs/docs/rules/#pandas-vet-pd
+    "D",   # pydocstyle https://beta.ruff.rs/docs/rules/#pydocstyle-d
+]
+ignore = [
+    "B905", # zip-without-explicit-strict
+    "D100", # missing docstring in public module
+    "D101", # missing docstring in public class
+    "D102", # missing docstring in public method
+    "D103", # missing docstring in public function
+    "D104", # missing docstring in public package
+    "D106", # missing docstring in public nested class
+    "D205", # 1 blank line required between summary line and description
+    "D211", # blank-line-before-class
+    "D212", # multi-line-summary-first-line
+    "D213", # multi-line-summary-second-line
+    "D401", # first line of docstring should be in imperative mood
+    "E501", # line-too-long (handled by black)
+    "PD901", # `df` is a bad variable name
+]
+
+[tool.black]
+line-length = 88
+
+[tool.sqlfluff.core]
+dialect = "mysql"
+exclude_rules = "AM04"
+max_line_length = 120
+
+[tool.sqlfluff.rules.capitalisation.keywords]
+capitalisation_policy = "upper"
+
+[tool.sqlfluff.layout.type.comma]
+line_position = "trailing"

@@ -1,0 +1,26 @@
+version: "3.4"
+
+services:
+  # Kafka Streams + REST API services (Java)
+  pizzashop:
+    build: pizzashop
+    restart: unless-stopped
+    container_name: pizzashop
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_KAFKA_STREAMS_BOOTSTRAP_SERVERS=kafka:9092
+      - ORDERS_TOPIC=orders
+      - PRODUCTS_TOPIC=mysql.pizzashop.products
+      - ENRICHED_ORDER_ITEMS_TOPIC=enriched-order-items
+      - ENRICHED_ORDER_ITEMS_TWO_TOPIC=enriched-order-items-two
+      - ENRICHED_ORDERS_TOPIC=enriched-orders
+      - PINOT_BROKER=pinot-broker:8099
+    #depends_on:
+    #  - kafka
+    networks:
+      - rta_scratch
+
+networks:
+  rta_scratch:
+    name: rta_scratch

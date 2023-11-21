@@ -1,0 +1,23 @@
+version: "3.4"
+
+services:
+  # Dashboard service
+  dashboard:
+    build: streamlit
+    container_name: dashboard
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    #depends_on:
+    #  - pinot-controller
+    volumes:
+      - ./streamlit/app.py:/workdir/app.py
+    environment:
+      - PINOT_BROKER
+      - PINOT_BROKER_PORT
+    networks:
+      - rta_scratch
+
+networks:
+  rta_scratch:
+    name: rta_scratch

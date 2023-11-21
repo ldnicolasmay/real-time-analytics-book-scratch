@@ -1,0 +1,146 @@
+version: "3.4"
+
+services:
+  zookeeper:
+    image: zookeeper:latest
+    container_name: zookeeper
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOO_MY_ID: 1
+      ZOO_PORT: 2181
+      ZOO_SERVERS: server.1=zookeeper:2888:3888;2181
+    networks:
+      - rta_scratch
+
+  kafka:
+    image: confluentinc/cp-kafka:7.1.0
+    container_name: kafka
+    hostname: kafka
+    ports:
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TOOLS_LOG4J_LOGLEVEL: ERROR
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: "nc -z localhost 9092"
+      interval: 1s
+      start_period: 12s
+    networks:
+      - rta_scratch
+
+  mysql:
+    image: mysql/mysql-server:8.0.27
+    container_name: mysql
+    hostname: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: debezium
+      MYSQL_USER: mysqluser
+      MYSQL_PASSWORD: mysqlpw
+    volumes:
+      - ./mysql/mysql.cnf:/etc/mysql/conf.d
+      - ./mysql/mysql_bootstrap.sql:/docker-entrypoint-initdb.d/mysql_bootstrap.sql
+      - ./mysql/data:/var/lib/mysql-files/data
+    networks:
+      - rta_scratch
+    healthcheck:
+      test: "mysql -pdebezium -e 'select 1'"
+      interval: 1s
+      start_period: 120s
+
+  # Python app to produce data to topics
+  orders-service:
+    build: orders-service
+    restart: unless-stopped
+    container_name: orders-service
+    depends_on:
+      - mysql
+      - kafka
+    environment:
+      MYSQL_SERVER: mysql
+      KAFKA_BROKER_HOSTNAME: kafka
+      KAFKA_BROKER_PORT: 9092
+    networks:
+      - rta_scratch
+
+  # Kafka Streams (Java)
+  pizzashop:
+    build: pizzashop
+    restart: unless-stopped
+    container_name: pizzashop
+    ports:
+      - "8080:8080"
+    environment:
+      - QUARKUS_KAFKA_STREAMS_BOOTSTRAP_SERVERS=kafka:9092
+      - ORDERS_TOPIC=orders
+      - PRODUCTS_TOPIC=mysql.pizzashop.products
+      - ENRICHED_ORDER_ITEMS_TOPIC=enriched-order-items
+      - ENRICHED_ORDER_ITEMS_TWO_TOPIC=enriched-order-items-two
+      - ENRICHED_ORDERS_TOPIC=enriched-orders
+      - PINOT_BROKER=pinot-broker:8099
+    depends_on:
+      - kafka
+    networks:
+      - rta_scratch
+
+  # Apache Pinot
+  pinot-controller:
+    image: apachepinot/pinot:0.12.1
+    container_name: "pinot-controller"
+    command: "StartController -zkAddress zookeeper:2181"
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    depends_on:
+      - zookeeper
+    networks:
+      - rta_scratch
+  pinot-broker:
+    image: apachepinot/pinot:0.12.1
+    container_name: "pinot-broker"
+    command: "StartBroker -zkAddress zookeeper:2181"
+    restart: unless-stopped
+    ports:
+      - "8099:8099"
+    depends_on:
+      - pinot-controller
+    networks:
+      - rta_scratch
+  pinot-server:
+    image: apachepinot/pinot:0.12.1
+    container_name: "pinot-server"
+    command: "StartServer -zkAddress zookeeper:2181"
+    restart: unless-stopped
+    depends_on:
+      - pinot-broker
+    networks:
+      - rta_scratch
+  pinot-add-tables:
+    image: apachepinot/pinot:0.12.1
+    container_name: "pinot-add-tables"
+    restart: on-failure
+    environment:
+      - "JAVA_OPTS=-Dpinot.admin.system.exit=true"
+    volumes:
+      - ./pinot/config:/config
+    #command: "'./bin/pinot-admin.sh AddTable -schemaFile /config/orders/schema.json -tableConfigFile /config/orders/table.json -controllerHost pinot-controller -exec'"
+    command: "'./bin/pinot-admin.sh AddTable -schemaFile /config/orders/schema.json -tableConfigFile /config/orders/table_with_index.json -controllerHost pinot-controller -exec'"
+    entrypoint: "bash -c"
+    depends_on:
+      - pinot-controller
+    networks:
+      - rta_scratch
+
+networks:
+  rta_scratch:
+    name: rta_scratch
