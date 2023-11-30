@@ -288,4 +288,40 @@ public class OrdersResource {
 
         return Response.ok(rows).build();
     }
+
+    @GET
+    @Path("/stuck/{orderStatus}/{stuckTimeInMillis}")
+    public Response stuckOrders(
+        @PathParam("orderStatus") String orderStatus,
+        @PathParam("stuckTimeInMillis") Long stuckTimeInMillis
+    ) {
+        String query = DSL.using(SQLDialect.POSTGRES)
+            .select(
+                field("id"),
+                field("price"),
+                field("ts"),
+                field("(now() - ts) / 1000")
+            )
+            .from("orders_enriched")
+            .where(field("status").eq(field("'" + orderStatus + "'")))
+            .and(field("(now() - ts) > " + stuckTimeInMillis).coerce(Boolean.class))
+            .orderBy(field("ts"))
+            .getSQL();
+
+        ResultSet resultSet = runQuery(connection, query);
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (int index = 0; index < resultSet.getRowCount(); index++) {
+            rows.add(
+                Map.of(
+                    "id", resultSet.getString(index, 0),
+                    "price", resultSet.getDouble(index, 1),
+                    "ts", resultSet.getString(index, 2),
+                    "timeInStatus", resultSet.getDouble(index, 3)
+                )
+            );
+        }
+
+        return Response.ok(rows).build();
+    }
 }

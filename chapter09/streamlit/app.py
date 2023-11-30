@@ -229,6 +229,19 @@ if pinot_available:
     st.markdown(html, unsafe_allow_html=True)
 
     ###
+    # Stuck orders table
+    ###
+
+    response = requests.get(
+        f"{DELIVERY_SERVICE_API}/orders/stuck/BEING_COOKED/60000"
+    ).json()
+    st.subheader("Orders delayed while BEING_COOKED")
+    stuck_orders_cols = ["id", "price", "ts", "timeInStatus"]
+    df = pd.DataFrame(response)[stuck_orders_cols].head(5)
+    html = convert_df(df)
+    st.markdown(html, unsafe_allow_html=True)
+
+    ###
     # Refresh options
     ###
 
